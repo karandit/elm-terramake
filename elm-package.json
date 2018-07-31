@@ -1,5 +1,5 @@
 {
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"summary": "Generate typesafe Terraform code",
 	"repository": "http://github.com/karandit/elm-terramake.git",
 	"license": "BSD3",

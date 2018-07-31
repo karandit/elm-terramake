@@ -17,6 +17,7 @@ import Terraform.AWS as AWS
 import Terraform.AWS.EC2 as EC2
 import Terraform.AWS.RDS as RDS
 
+type alias TfvarsExporter a = Program (Flags, a) () ()
 
 type alias Flags =
     {
@@ -36,17 +37,17 @@ withTerragrunt config  vars =
 
 {-| Export the Tfvar list as JSON to a `.tfvars` file.
 -}
-exportAsTfvars : Tfvars -> Program Flags () ()
+exportAsTfvars : Tfvars -> TfvarsExporter ()
 exportAsTfvars vars =
     Platform.programWithFlags
-        { init = \flags -> ((), writeTfvars flags vars)
+        { init = \(flags, ()) -> ((), writeTfvars flags vars)
         , update = \_ _ -> ( (), Cmd.none )
         , subscriptions = \_ -> Sub.none
         }
 
 {-| Export the Tfvar list as JSON to a `.tfvars` file with a callback allowing to get the input arguments.
 -}
-exportAsTfvarsWithArgs : (a -> Tfvars) -> Program (Flags, a) () ()
+exportAsTfvarsWithArgs : (a -> Tfvars) -> TfvarsExporter a
 exportAsTfvarsWithArgs argsFetcher =
     Platform.programWithFlags
         { init = \(flags, args) -> ((), writeTfvars flags <| argsFetcher args)
