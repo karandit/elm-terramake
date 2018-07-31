@@ -1,8 +1,8 @@
-module Terramake exposing (TfvarsExporter, exportAsTfvars, exportAsTfvarsWithArgs, withTerragrunt)
+module Terramake exposing (Flags, exportAsTfvars, exportAsTfvarsWithArgs, withTerragrunt)
 
 {-| Generate typesafe Terraform code.
 
-@docs TfvarsExporter, exportAsTfvars, exportAsTfvarsWithArgs, withTerragrunt
+@docs exportAsTfvars, exportAsTfvarsWithArgs, withTerragrunt
 -}
 
 import Platform
@@ -16,10 +16,6 @@ import Terraform exposing (..)
 import Terraform.AWS as AWS
 import Terraform.AWS.EC2 as EC2
 import Terraform.AWS.RDS as RDS
-
-{-| Main type of the exporters.
--}
-type alias TfvarsExporter a = Program (Flags, a) () ()
 
 type alias Flags =
     {
@@ -39,7 +35,7 @@ withTerragrunt config  vars =
 
 {-| Export the Tfvar list as JSON to a `.tfvars` file.
 -}
-exportAsTfvars : Tfvars -> TfvarsExporter ()
+exportAsTfvars : Tfvars -> Program (Flags, ()) () ()
 exportAsTfvars vars =
     Platform.programWithFlags
         { init = \(flags, ()) -> ((), writeTfvars flags vars)
@@ -49,7 +45,7 @@ exportAsTfvars vars =
 
 {-| Export the Tfvar list as JSON to a `.tfvars` file with a callback allowing to get the input arguments.
 -}
-exportAsTfvarsWithArgs : (a -> Tfvars) -> TfvarsExporter a
+exportAsTfvarsWithArgs : (a -> Tfvars) -> Program (Flags, a) () ()
 exportAsTfvarsWithArgs argsFetcher =
     Platform.programWithFlags
         { init = \(flags, args) -> ((), writeTfvars flags <| argsFetcher args)
