@@ -2,7 +2,7 @@ module Terramake exposing (TfvarsExporter, exportAsTfvars, exportAsTfvarsWithArg
 
 {-| Generate typesafe Terraform code.
 
-@docs exportAsTfvars, exportAsTfvarsWithArgs, withTerragrunt
+@docs TfvarsExporter, exportAsTfvars, exportAsTfvarsWithArgs, withTerragrunt
 -}
 
 import Platform
@@ -17,6 +17,8 @@ import Terraform.AWS as AWS
 import Terraform.AWS.EC2 as EC2
 import Terraform.AWS.RDS as RDS
 
+{-| Main type of the exporters.
+-}
 type alias TfvarsExporter a = Program (Flags, a) () ()
 
 type alias Flags =
