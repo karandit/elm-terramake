@@ -1,4 +1,4 @@
-module Terramake exposing (exportAsTfvars, exportAsTfvarsWithArgs, withTerragrunt)
+module Terramake exposing (TfvarsExporter, exportAsTfvars, exportAsTfvarsWithArgs, withTerragrunt)
 
 {-| Generate typesafe Terraform code.
 
