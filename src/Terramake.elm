@@ -2,7 +2,7 @@ module Terramake exposing (Flags, exportAsTfvars, exportAsTfvarsWithArgs, withTe
 
 {-| Generate typesafe Terraform code.
 
-@docs exportAsTfvars, exportAsTfvarsWithArgs, withTerragrunt
+@docs Flags, exportAsTfvars, exportAsTfvarsWithArgs, withTerragrunt
 -}
 
 import Platform
@@ -17,6 +17,8 @@ import Terraform.AWS as AWS
 import Terraform.AWS.EC2 as EC2
 import Terraform.AWS.RDS as RDS
 
+{-| Represents the incoming system args (e.g.: filePath)  
+-}
 type alias Flags =
     {
       filePath : String
@@ -35,10 +37,10 @@ withTerragrunt config  vars =
 
 {-| Export the Tfvar list as JSON to a `.tfvars` file.
 -}
-exportAsTfvars : Tfvars -> Program (Flags, ()) () ()
+exportAsTfvars : Tfvars -> Program (Flags, {}) () ()
 exportAsTfvars vars =
     Platform.programWithFlags
-        { init = \(flags, ()) -> ((), writeTfvars flags vars)
+        { init = \(flags, _) -> ((), writeTfvars flags vars)
         , update = \_ _ -> ( (), Cmd.none )
         , subscriptions = \_ -> Sub.none
         }
