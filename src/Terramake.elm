@@ -59,20 +59,21 @@ exportAsTfvarsWithArgs argsFetcher =
 writeTfvars :  Flags -> Tfvars -> Cmd ()
 writeTfvars flags vars =
   let
-      lines = encodeTfVars "  " "" <| List.map getEncoder vars
+      lines = encodeTfVars "  " "" <| List.concatMap getEncoder vars
   in
       Task.attempt (\_ -> ()) (File.write (flags.filePath ++ ".tfvars") lines)
 
-getEncoder : Tfvar -> TfVarLine
+getEncoder : Tfvar -> List TfVarLine
 getEncoder var =
   case var of
-    TfvarObject fieldName objVar -> TfVarLineJson fieldName [getEncoder objVar]
-    TfvarString fieldName value -> TfVarLineString fieldName value
-    TfvarInt fieldName value -> TfVarLineInt fieldName value
-    TfvarRegion fieldName value -> TfVarLineString fieldName <| AWS.regionToString value
-    TfvarInstanceType fieldName value -> TfVarLineString fieldName <|EC2.instanceTypeToString value
-    TfvarDbInstanceType fieldName value -> TfVarLineString fieldName <| RDS.dbInstanceTypeToString value
-    TfvarStorageType fieldName value -> TfVarLineString fieldName <| RDS.storageTypeToString value
+    TfvarNone -> []
+    TfvarObject fieldName objVar -> [TfVarLineJson fieldName <| getEncoder objVar]
+    TfvarString fieldName value -> [TfVarLineString fieldName value]
+    TfvarInt fieldName value -> [TfVarLineInt fieldName value]
+    TfvarRegion fieldName value -> [TfVarLineString fieldName <| AWS.regionToString value]
+    TfvarInstanceType fieldName value -> [TfVarLineString fieldName <|EC2.instanceTypeToString value]
+    TfvarDbInstanceType fieldName value -> [TfVarLineString fieldName <| RDS.dbInstanceTypeToString value]
+    TfvarStorageType fieldName value -> [TfVarLineString fieldName <| RDS.storageTypeToString value]
 
 
 addTerragruntTfvar : String -> Tfvars -> Tfvars
