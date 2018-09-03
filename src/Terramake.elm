@@ -1,10 +1,15 @@
-module Terramake exposing (Flags, exportAsTfvars, exportAsTfvarsWithArgs, withTerragrunt)
+module Terramake exposing (Flags, Tfvars, Tfvar
+    , tfvar, fromString, fromInt, fromMaybe, fromList
+    , exportAsTfvars, exportAsTfvarsWithArgs
+    , withTerragrunt)
 
 {-| Generate typesafe Terraform code.
 
-@docs Flags, exportAsTfvars, exportAsTfvarsWithArgs, withTerragrunt
+@docs exportAsTfvars, exportAsTfvarsWithArgs
+@docs withTerragrunt
+@docs Flags, Tfvars, Tfvar
+@docs tfvar, fromString, fromInt, fromMaybe, fromList
 -}
-
 import Platform
 import Platform.Cmd as Cmd
 import Platform.Sub as Sub
@@ -12,10 +17,6 @@ import Task
 import Json.Decode
 import Json.Encode as JE
 import File
-import Terraform exposing (..)
-import Terraform.AWS as AWS
-import Terraform.AWS.EC2 as EC2
-import Terraform.AWS.RDS as RDS
 
 {-| Represents the incoming system args (e.g.: filePath)
 -}
@@ -29,11 +30,65 @@ type alias TerragruntConfig x =
         | source : String
     }
 
+{-| Alias for a list of Tfvar
+-}
+type alias Tfvars = List Tfvar
+
+{-| Represents a tf variable. This is exported to JSON.
+-}
+type Tfvar = Tfvar String Tfval
+
+type Tfval
+    = TfvalNone
+    | TfvalString String
+    | TfvalInt Int
+    | TfvalList (List Tfval)
+    | TfvalRecord Tfvars
+
+{-| Creates Tfval from String
+-}
+fromString : String -> Tfval
+fromString s =
+  TfvalString s
+
+{-| Creates Tfval from Int
+-}
+fromInt : Int -> Tfval
+fromInt i =
+  TfvalInt i
+
+{-| Creates Tfval from Maybe
+-}
+fromMaybe : (a -> Tfval) -> Maybe a -> Tfval
+fromMaybe wrapper val =
+  val |> Maybe.map wrapper |> Maybe.withDefault TfvalNone
+
+{-| Creates Tfval from List
+-}
+fromList : (a -> Tfval) -> List a -> Tfval
+fromList wrapper vals =
+  vals |> List.map wrapper |> TfvalList
+
+fromRecord : (List Tfvar) -> Tfval
+fromRecord fields =
+  TfvalRecord fields
+
+{-| Creates a Tfvar from the given fieldName and Tfval
+-}
+tfvar : String -> Tfval -> Tfvar
+tfvar key value =
+  Tfvar key value
+
 {-| Append to the given Tfvars a Terragrunt specific Tfvar.
 -}
-withTerragrunt : TerragruntConfig x  -> Tfvars -> Tfvars
-withTerragrunt config  vars =
-  addTerragruntTfvar config.source vars
+withTerragrunt : TerragruntConfig x -> Tfvars -> Tfvars
+withTerragrunt config vars =
+  (::) (Tfvar "terragrunt" <| fromRecord [
+          Tfvar "terraform" <| fromRecord [
+            Tfvar "source" <| fromString config.source
+            ]
+          ]
+        ) vars
 
 {-| Export the Tfvar list as JSON to a `.tfvars` file.
 -}
@@ -59,43 +114,37 @@ exportAsTfvarsWithArgs argsFetcher =
 writeTfvars :  Flags -> Tfvars -> Cmd ()
 writeTfvars flags vars =
   let
-      lines = encodeTfVars "  " "" <| List.concatMap getEncoder vars
+      lines = encodeTfvars "  " "" vars
   in
       Task.attempt (\_ -> ()) (File.write (flags.filePath ++ ".tfvars") lines)
 
-getEncoder : Tfvar -> List TfVarLine
-getEncoder var =
-  case var of
-    TfvarNone -> []
-    TfvarObject fieldName objVar -> [TfVarLineJson fieldName <| getEncoder objVar]
-    TfvarString fieldName value -> [TfVarLineString fieldName value]
-    TfvarInt fieldName value -> [TfVarLineInt fieldName value]
-    TfvarRegion fieldName value -> [TfVarLineString fieldName <| AWS.regionToString value]
-    TfvarInstanceType fieldName value -> [TfVarLineString fieldName <|EC2.instanceTypeToString value]
-    TfvarDbInstanceType fieldName value -> [TfVarLineString fieldName <| RDS.dbInstanceTypeToString value]
-    TfvarStorageType fieldName value -> [TfVarLineString fieldName <| RDS.storageTypeToString value]
+isNone : Tfvar -> Bool
+isNone (Tfvar fieldName value) =
+  case value of
+    TfvalNone -> True
+    _ -> False
 
+encodeTfvars : String -> String -> Tfvars -> String
+encodeTfvars indent actIndent vars =
+    String.join "\n" <| List.map (encodeTfvar indent actIndent) <| List.filter (not << isNone) vars
+--
+encodeTfvar : String -> String -> Tfvar -> String
+encodeTfvar indent actIndent (Tfvar fieldName value) =
+    actIndent ++ fieldName ++ " = "  ++ (encodeTfval indent actIndent value)
 
-addTerragruntTfvar : String -> Tfvars -> Tfvars
-addTerragruntTfvar source =
-  (::) (TfvarObject "terragrunt" ( TfvarObject "terraform"(TfvarString "source" source)))
-
-
--- TFvars Encode -------------------------------------------------------------------------------------------------------
-type TfVarLine =
-    TfVarLineString String String
-    | TfVarLineInt String Int
-    | TfVarLineJson String (List TfVarLine)
-
-encodeTfVars : String -> String -> List TfVarLine -> String
-encodeTfVars indent actIndent lines =
-    String.join "\n" <| List.map (encodeTfVar indent actIndent) lines
-
-encodeTfVar : String -> String ->  TfVarLine -> String
-encodeTfVar indent actIndent line =
-  case line of
-    TfVarLineString key value -> actIndent ++ key ++ " = \"" ++ value ++ "\""
-    TfVarLineInt key value    -> actIndent ++ key ++ " = " ++ (toString value)
-    TfVarLineJson key lines   -> actIndent ++ key ++ " = {\n"
-                                  ++ (encodeTfVars indent (indent ++ actIndent) lines) ++ "\n"
-                                  ++ actIndent ++ "}"
+encodeTfval : String -> String -> Tfval -> String
+encodeTfval indent actIndent value =
+  case value of
+    TfvalNone               -> "" -- this shouldn't be reached as it is filtered out in encodeTfvars
+    TfvalString stringValue -> "\"" ++ stringValue ++ "\""
+    TfvalInt intValue       -> toString intValue
+    TfvalList values        ->
+        let
+          newIndent = actIndent ++ indent
+        in
+          "[\n"
+          ++ (String.join ",\n" <| List.map (\v -> newIndent ++ (encodeTfval indent newIndent v)) values)
+          ++ "]\n"
+    TfvalRecord vars   -> "{\n"
+                          ++ (encodeTfvars indent (indent ++ actIndent) vars) ++ "\n"
+                          ++ actIndent ++ "}"

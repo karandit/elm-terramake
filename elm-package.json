@@ -1,5 +1,5 @@
 {
-	"version": "0.1.7",
+	"version": "0.1.8",
 	"summary": "Generate typesafe Terraform code",
 	"repository": "http://github.com/karandit/elm-terramake.git",
 	"license": "BSD3",
@@ -9,7 +9,6 @@
 	"exposed-modules": [
 		"File",
 		"Terramake",
-		"Terraform",
 		"Terraform.AWS",
 		"Terraform.AWS.EC2",
 		"Terraform.AWS.RDS"
