@@ -1,19 +1,20 @@
 module Terramake exposing (Flags, Tfvars, Tfvar
-    , tfvar, fromString, fromInt, fromMaybe, fromList
-    , exportAsTfvars, exportAsTfvarsWithArgs
+    , tfvar, fromString, fromInt, fromMaybe, fromList, (:+), (:-)
+    , exportAsTfvars, exportAsTfvarsWithArgs, exportAllAsTfvars
     , withTerragrunt)
 
 {-| Generate typesafe Terraform code.
 
-@docs exportAsTfvars, exportAsTfvarsWithArgs
-@docs withTerragrunt
 @docs Flags, Tfvars, Tfvar
-@docs tfvar, fromString, fromInt, fromMaybe, fromList
+@docs tfvar, fromString, fromInt, fromMaybe, fromList, (:+), (:-)
+@docs exportAsTfvars, exportAsTfvarsWithArgs, exportAllAsTfvars
+@docs withTerragrunt
 -}
+import Dict exposing (Dict)
 import Platform
 import Platform.Cmd as Cmd
 import Platform.Sub as Sub
-import Task
+import Task exposing (Task)
 import Json.Decode
 import Json.Encode as JE
 import File
@@ -44,6 +45,9 @@ type Tfval
     | TfvalInt Int
     | TfvalList (List Tfval)
     | TfvalRecord Tfvars
+
+type TfvarPath = TfvarFolder (Dict String TfvarPath)
+               | TfvarFile Tfvars
 
 {-| Creates Tfval from String
 -}
@@ -90,33 +94,78 @@ withTerragrunt config vars =
           ]
         ) vars
 
-{-| Export the Tfvar list as JSON to a `.tfvars` file.
+{-| Creates a TfvarPath representing a folder with subfolders/files.
+-}
+(:+) : String -> List (String, TfvarPath) -> (String, TfvarPath)
+(:+) key tuples =
+    (key, TfvarFolder <| Dict.fromList tuples)
+
+{-| Creates a TfvarPath representing a file.
+-}
+(:-) : String -> Tfvars -> (String, TfvarPath)
+(:-) key content =
+    (key, TfvarFile content)
+
+{-| Writes the given Tfvars as HCL to a `.tfvars` file.
 -}
 exportAsTfvars : Tfvars -> Program (Flags, {}) () ()
 exportAsTfvars vars =
     Platform.programWithFlags
-        { init = \(flags, _) -> ((), writeTfvars flags vars)
+        { init = \(flags, _) -> ((), writeTfvars flags.filePath vars)
         , update = \_ _ -> ( (), Cmd.none )
         , subscriptions = \_ -> Sub.none
         }
 
-{-| Export the Tfvar list as JSON to a `.tfvars` file with a callback allowing to get the input arguments.
+{-| Writes the given Tfvars as HCL to a `.tfvars` file with a callback allowing to get the input arguments.
 -}
 exportAsTfvarsWithArgs : (a -> Tfvars) -> Program (Flags, a) () ()
 exportAsTfvarsWithArgs argsFetcher =
     Platform.programWithFlags
-        { init = \(flags, args) -> ((), writeTfvars flags <| argsFetcher args)
+        { init = \(flags, args) -> ((), writeTfvars flags.filePath <| argsFetcher args)
         , update = \_ _ -> ( (), Cmd.none )
         , subscriptions = \_ -> Sub.none
         }
 
+{-| Writes a whole folder of Tfvars to `.tfvars` files.
+-}
+exportAllAsTfvars : List (String, TfvarPath) -> Program (Flags, {}) () ()
+exportAllAsTfvars tuples =
+    let
+      rootTfvarPath = TfvarFolder <| Dict.fromList tuples
+    in
+      Platform.programWithFlags
+          { init = \(flags, _) -> ((), Task.attempt (\_ -> ()) <| writeAllTfvars flags.filePath rootTfvarPath)
+          , update = \_ _ -> ( (), Cmd.none )
+          , subscriptions = \_ -> Sub.none
+          }
+
 -- Local ---------------------------------------------------------------------------------------------------------------
-writeTfvars :  Flags -> Tfvars -> Cmd ()
-writeTfvars flags vars =
+writeAllTfvars : String -> TfvarPath -> Task File.Error ()
+writeAllTfvars filePath tfvarPath =
+  case tfvarPath of
+    TfvarFolder dict ->
+      let
+        _ = Debug.log "writeAllTfvars:" filePath
+      in
+         File.mkdirSync filePath
+         |> Task.andThen (\() -> dict
+             |> Dict.toList
+             |> List.map (\(key, value) -> writeAllTfvars (filePath ++ "/" ++ key) value)
+             |> Task.sequence
+             |> Task.map (\_ -> ())
+          )
+    TfvarFile tfvars -> writeTfvarsTask filePath tfvars
+
+writeTfvarsTask : String -> Tfvars -> Task File.Error ()
+writeTfvarsTask filePath vars =
+  File.write (filePath ++ ".tfvars") <| encodeTfvars "  " "" vars
+
+writeTfvars : String -> Tfvars -> Cmd ()
+writeTfvars filePath vars =
   let
       lines = encodeTfvars "  " "" vars
   in
-      Task.attempt (\_ -> ()) (File.write (flags.filePath ++ ".tfvars") lines)
+      Task.attempt (\_ -> ()) (File.write (filePath ++ ".tfvars") lines)
 
 isNone : Tfvar -> Bool
 isNone (Tfvar fieldName value) =

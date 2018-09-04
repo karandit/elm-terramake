@@ -4,6 +4,7 @@ module File
         , read
         , write
         , lstat
+        , mkdirSync
         )
 
 {-| File
@@ -12,6 +13,7 @@ module File
 @docs read
 @docs lstat
 @docs write
+@docs mkdirSync
 
 -}
 
@@ -38,6 +40,12 @@ read path =
 write : String -> String -> Task Error ()
 write path data =
     Native.File.write path data
+
+{-| Creates a directory.
+-}
+mkdirSync : String -> Task Error ()
+mkdirSync path =
+    Native.File.mkdirSync path
 
 
 {-| Stat

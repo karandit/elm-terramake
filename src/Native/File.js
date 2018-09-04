@@ -28,6 +28,16 @@ var _karandit$elm_terramake$Native_File = function() {
             });
     }
 
+    function mkdirSync(path) {
+        return _elm_lang$core$Native_Scheduler.nativeBinding(
+            function(callback) {
+                if (!fs.existsSync(path)) {
+                  fs.mkdirSync(path);
+                }
+                return callback(_elm_lang$core$Native_Scheduler.succeed(_elm_lang$core$Native_Utils.Tuple0));
+            });
+    }
+
     function lstat(path) {
         return _elm_lang$core$Native_Scheduler.nativeBinding(
             function(callback) {
@@ -44,7 +54,8 @@ var _karandit$elm_terramake$Native_File = function() {
     return {
         read: read,
         write: F2(write),
-        lstat: lstat
+        lstat: lstat,
+        mkdirSync: mkdirSync
     };
 }();
 
