@@ -1,12 +1,12 @@
 module Terramake exposing (Flags, Tfvars, Tfvar
-    , tfvar, fromString, fromInt, fromMaybe, fromList, (:+), (:-)
+    , tfvar, fromString, fromInt, fromBool, fromMaybe, fromList, fromRecord, (:+), (:-)
     , exportAsTfvars, exportAsTfvarsWithArgs, exportAllAsTfvars
     , withTerragrunt)
 
 {-| Generate typesafe Terraform code.
 
 @docs Flags, Tfvars, Tfvar
-@docs tfvar, fromString, fromInt, fromMaybe, fromList, (:+), (:-)
+@docs tfvar, fromString, fromInt, fromBool, fromMaybe, fromList, fromRecord, (:+), (:-)
 @docs exportAsTfvars, exportAsTfvarsWithArgs, exportAllAsTfvars
 @docs withTerragrunt
 -}
@@ -43,6 +43,7 @@ type Tfval
     = TfvalNone
     | TfvalString String
     | TfvalInt Int
+    | TfvalBool Bool
     | TfvalList (List Tfval)
     | TfvalRecord Tfvars
 
@@ -61,6 +62,12 @@ fromInt : Int -> Tfval
 fromInt i =
   TfvalInt i
 
+{-| Creates Tfval from Bool
+-}
+fromBool : Bool -> Tfval
+fromBool b =
+  TfvalBool b
+
 {-| Creates Tfval from Maybe
 -}
 fromMaybe : (a -> Tfval) -> Maybe a -> Tfval
@@ -73,6 +80,8 @@ fromList : (a -> Tfval) -> List a -> Tfval
 fromList wrapper vals =
   vals |> List.map wrapper |> TfvalList
 
+{-| Creates Tfval from a record
+-}
 fromRecord : (List Tfvar) -> Tfval
 fromRecord fields =
   TfvalRecord fields
@@ -187,6 +196,7 @@ encodeTfval indent actIndent value =
     TfvalNone               -> "" -- this shouldn't be reached as it is filtered out in encodeTfvars
     TfvalString stringValue -> "\"" ++ stringValue ++ "\""
     TfvalInt intValue       -> toString intValue
+    TfvalBool boolValue     -> if boolValue then "true" else "false"
     TfvalList values        ->
         let
           newIndent = actIndent ++ indent
